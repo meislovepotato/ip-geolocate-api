@@ -1,13 +1,15 @@
 import dotenv from "dotenv";
+import express from "express";
+import bodyParser from "body-parser";
+import fetch from "node-fetch";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import cors from "cors";
+
+import { pool, init } from "./db.js";
 
 dotenv.config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
-const { db, init } = require('./db');
-const cors = require('cors');
-
-init();
+await init();
 
 const app = express();
 app.use(cors());
@@ -18,17 +20,31 @@ const PORT = process.env.PORT || 8000;
 // POST /api/login
 // body: { email, password }
 // Returns: { success: true, user: {id, name, email} } or { success: false, message }
-app.post('/api/login', (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
+  if (!email || !password)
+    return res.status(400).json({ success: false, message: "Email and password required" });
 
-  const user = db.prepare('SELECT id, name, email, password FROM users WHERE email = ?').get(email);
-  if (!user || user.password !== password) {
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
+    if (rows.length === 0) return res.status(401).json({ success: false, message: "Invalid credentials" });
+
+    const user = rows[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ success: false, message: "Invalid credentials" });
+
+    // JWT
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
-  // In real app return token (JWT). For simplicity return a small "session" object
-  const payload = { id: user.id, name: user.name, email: user.email };
-  return res.json({ success: true, user: payload });
 });
 
 // GET /api/geo?ip=<ip>
@@ -53,8 +69,10 @@ app.get('/api/geo', async (req, res) => {
 
     // Save history only when ip param passed (user searches)
     if (ip && json && !json.error) {
-      const stmt = db.prepare('INSERT INTO searches (ip, result) VALUES (?, ?)');
-      stmt.run(ip, JSON.stringify(json));
+      await pool.query(
+        "INSERT INTO searches (ip, result) VALUES (?, ?)",
+        [ip, JSON.stringify(json)]
+      );
     }
 
     res.json(json);
@@ -64,23 +82,21 @@ app.get('/api/geo', async (req, res) => {
   }
 });
 
-// GET /api/history
-app.get('/api/history', (req, res) => {
-  const rows = db.prepare('SELECT id, ip, result, created_at FROM searches ORDER BY created_at DESC').all();
-  // parse result JSON
-  const parsed = rows.map(r => ({ ...r, result: JSON.parse(r.result) }));
-  res.json(parsed);
+// GET
+app.get("/api/history", async (req, res) => {
+  const [rows] = await pool.query("SELECT id, ip, result, created_at FROM searches ORDER BY created_at DESC");
+  res.json(rows);
 });
 
-// DELETE /api/history (bulk) body: { ids: [1,2,3] }
-app.delete('/api/history', (req, res) => {
-  const ids = req.body && req.body.ids;
-  if (!Array.isArray(ids)) return res.status(400).json({ success: false, message: 'ids array required' });
-  const del = db.prepare(`DELETE FROM searches WHERE id = ?`);
-  const tx = db.transaction((list) => list.forEach(id => del.run(id)));
-  tx(ids);
+// DELETE bulk
+app.delete("/api/history", async (req, res) => {
+  const ids = req.body?.ids;
+  if (!Array.isArray(ids)) return res.status(400).json({ success: false, message: "ids array required" });
+
+  await pool.query(`DELETE FROM searches WHERE id IN (${ids.map(() => "?").join(",")})`, ids);
   res.json({ success: true });
 });
+
 
 app.listen(PORT, () => {
   console.log(`API server running on http://localhost:${PORT}`);
