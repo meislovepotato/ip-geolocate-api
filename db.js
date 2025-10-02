@@ -31,6 +31,14 @@ export async function init() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    await connection.query(`
+        CREATE TABLE IF NOT EXISTS searches (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip VARCHAR(45) NOT NULL,
+            result JSON NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
 
     console.log(`✅ Database '${process.env.DB_NAME}' and tables are ready`);
 
