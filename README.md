@@ -1,5 +1,5 @@
-⚙️ Backend (ip-geolocate-api)
-Tech Stack
+Backend (ip-geolocate-api)
+# Tech Stack
 
 - Node.js + Express
 
@@ -26,7 +26,7 @@ npm install --save-dev nodemon
 PORT=8000
 JWT_SECRET=supersecretkey
 
-# Postgres Database (external URL from Render)
+## Postgres Database (external URL from Render)
 
 DB_HOST=dpg-d3fnieili9vc73e7pjq0-a.singapore-postgres.render.com
 
