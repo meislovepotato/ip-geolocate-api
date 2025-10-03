@@ -26,10 +26,10 @@ app.post("/api/login", async (req, res) => {
     return res.status(400).json({ success: false, message: "Email and password required" });
 
   try {
-    const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [email]);
-    if (rows.length === 0) return res.status(401).json({ success: false, message: "Invalid credentials" });
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (result.rows.length === 0) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-    const user = rows[0];
+    const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
@@ -70,7 +70,7 @@ app.get('/api/geo', async (req, res) => {
     // Save history only when ip param passed (user searches)
     if (ip && json && !json.error) {
       await pool.query(
-        "INSERT INTO searches (ip, result) VALUES (?, ?)",
+        "INSERT INTO searches (ip, result) VALUES ($1, $2)",
         [ip, JSON.stringify(json)]
       );
     }
@@ -84,16 +84,16 @@ app.get('/api/geo', async (req, res) => {
 
 // GET
 app.get("/api/history", async (req, res) => {
-  const [rows] = await pool.query("SELECT id, ip, result, created_at FROM searches ORDER BY created_at DESC");
-  res.json(rows);
+  const result = await pool.query("SELECT id, ip, result, created_at FROM searches ORDER BY created_at DESC");
+  res.json(result.rows);
 });
 
-// DELETE bulk
+// DELETE
 app.delete("/api/history", async (req, res) => {
   const ids = req.body?.ids;
   if (!Array.isArray(ids)) return res.status(400).json({ success: false, message: "ids array required" });
 
-  await pool.query(`DELETE FROM searches WHERE id IN (${ids.map(() => "?").join(",")})`, ids);
+  await pool.query(`DELETE FROM searches WHERE id = ANY($1::int[])`, [ids]);
   res.json({ success: true });
 });
 
