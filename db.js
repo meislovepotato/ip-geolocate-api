@@ -37,7 +37,6 @@ export async function init() {
 
     console.log(`✅ Database '${process.env.DB_NAME}' and tables are ready`);
 
-    await connection.end();
   } catch (err) {
     console.error("❌ Database init failed:", err);
     process.exit(1);
