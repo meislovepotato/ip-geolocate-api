@@ -1,19 +1,19 @@
 ⚙️ Backend (ip-geolocate-api)
 Tech Stack
 
-Node.js + Express
+- Node.js + Express
 
-PostgreSQL (hosted on Render)
+- PostgreSQL (hosted on Render)
 
-dotenv → environment config
+- dotenv → environment config
 
-cors → cross-origin support
+- cors → cross-origin support
 
-body-parser → request body parsing
+- body-parser → request body parsing
 
-bcrypt → password hashing
+- bcrypt → password hashing
 
-jsonwebtoken → JWT authentication
+- jsonwebtoken → JWT authentication
 
 ## Installed Dependencies
 
