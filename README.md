@@ -18,6 +18,7 @@ jsonwebtoken → JWT authentication
 ## Installed Dependencies
 
 npm install express body-parser cors dotenv bcrypt jsonwebtoken pg
+
 npm install --save-dev nodemon
 
 ## .env Example
