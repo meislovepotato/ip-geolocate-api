@@ -44,6 +44,12 @@ async function createMysqlPool() {
     port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
     // waitForConnections, connectionLimit etc. can be added as needed
   };
+  // Enable TLS for TiDB / when DB_SSL is requested
+  if (process.env.DB_SSL === "true" || (process.env.DB_HOST && process.env.DB_HOST.includes("tidb"))) {
+    // Use TLS but don't require a CA by default; this enables encrypted transport.
+    // For strict verification, set DB_SSL=true and provide proper CA handling.
+    cfg.ssl = { rejectUnauthorized: false };
+  }
   pool = mysql.createPool(cfg);
 }
 
