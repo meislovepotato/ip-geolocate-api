@@ -149,6 +149,29 @@ export async function init() {
     );
   } catch (err) {
     console.error("❌ Database init failed:", err);
+    // If the user lacks permission to run CREATE (common on managed DBs),
+    // log a warning and continue so the app can run against existing tables.
+    const msg = String(err.message || "").toLowerCase();
+    const code = err.code || "";
+    const errno = Number(err.errno || 0);
+    const sqlState = err.sqlState || "";
+
+    const isCreateDenied =
+      // MySQL/TiDB
+      code === "ER_TABLEACCESS_DENIED_ERROR" ||
+      errno === 1142 ||
+      sqlState === "42000" ||
+      msg.includes("create command denied") ||
+      // Postgres-ish permission errors
+      code === "42501" ||
+      msg.includes("permission denied") ||
+      msg.includes("must be owner of");
+
+    if (isCreateDenied) {
+      console.warn("⚠️ Database user cannot create tables. Skipping DDL. Ensure tables already exist.");
+      return;
+    }
+
     throw err;
   }
 }
