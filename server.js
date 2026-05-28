@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 import express from "express";
-import bodyParser from "body-parser";
 import fetch from "node-fetch";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -13,7 +12,10 @@ await init();
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
+
+// small helper to wrap async route handlers
+const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 const PORT = process.env.PORT || 8000;
 
@@ -34,6 +36,10 @@ app.post("/api/login", async (req, res) => {
     if (!match) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
     // JWT
+    if (!process.env.JWT_SECRET) {
+      console.error("Missing JWT_SECRET");
+      return res.status(500).json({ success: false, message: "Server not configured" });
+    }
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
     res.json({
@@ -51,7 +57,7 @@ app.post("/api/login", async (req, res) => {
 // If ip param is missing => call ipinfo for caller: https://ipinfo.io/geo
 // If ip param present => call https://ipinfo.io/{ip}/geo
 // Proxy responses to avoid CORS issues on frontend.
-app.get('/api/geo', async (req, res) => {
+app.get('/api/geo', wrap(async (req, res) => {
   try {
     const ip = req.query.ip;
     let url;
@@ -80,24 +86,34 @@ app.get('/api/geo', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'failed' });
   }
-});
+}));
 
 // GET
-app.get("/api/history", async (req, res) => {
+app.get("/api/history", wrap(async (req, res) => {
   const result = await pool.query("SELECT id, ip, result, created_at FROM searches ORDER BY created_at DESC");
   res.json(result.rows);
-});
+}));
 
 // DELETE
-app.delete("/api/history", async (req, res) => {
+app.delete("/api/history", wrap(async (req, res) => {
   const ids = req.body?.ids;
-  if (!Array.isArray(ids)) return res.status(400).json({ success: false, message: "ids array required" });
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ success: false, message: "ids array required" });
 
-  await pool.query(`DELETE FROM searches WHERE id = ANY($1::int[])`, [ids]);
+  // Ensure all ids are integers
+  const intIds = ids.map((i) => parseInt(i, 10)).filter((n) => Number.isInteger(n));
+  if (intIds.length === 0) return res.status(400).json({ success: false, message: "No valid ids provided" });
+
+  await pool.query(`DELETE FROM searches WHERE id = ANY($1::int[])`, [intIds]);
   res.json({ success: true });
-});
+}));
 
 
 app.listen(PORT, () => {
   console.log(`API server running on http://localhost:${PORT}`);
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ success: false, message: 'Internal Server Error' });
 });
