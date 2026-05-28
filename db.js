@@ -168,7 +168,9 @@ export async function init() {
       msg.includes("must be owner of");
 
     if (isCreateDenied) {
-      console.warn("⚠️ Database user cannot create tables. Skipping DDL. Ensure tables already exist.");
+      console.warn(
+        "⚠️ Database user cannot create tables. Skipping DDL. Ensure tables already exist.",
+      );
       return;
     }
 
